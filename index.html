@@ -1,1 +1,457 @@
 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Morceguinho - Fuga da Floresta</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    color: white;
+    text-align: center;
+    background: linear-gradient(#10152f, #293b60);
+}
+
+h1 {
+    margin: 20px 0 10px;
+}
+
+.info {
+    margin: 12px;
+    font-size: 18px;
+}
+
+canvas {
+    width: min(900px, 96vw);
+    height: auto;
+    border: 3px solid #8296ff;
+    border-radius: 12px;
+    background: #10152f;
+    display: block;
+    margin: auto;
+}
+
+button {
+    padding: 12px 24px;
+    margin: 12px;
+    border: 0;
+    border-radius: 8px;
+    background: #a6f3d0;
+    color: #10152f;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+#mensagem {
+    padding: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🦇 Morceguinho</h1>
+
+<div class="info">
+    Pontos: <span id="pontos">0</span>
+    &nbsp; | &nbsp;
+    Vidas: <span id="vidas">3</span>
+</div>
+
+<canvas id="jogo" width="900" height="500"></canvas>
+
+<div id="mensagem">
+    Use W/S ou as setas para voar.
+    Desvie dos obstáculos e pegue os cristais!
+</div>
+
+<button id="botao" onclick="iniciarJogo()">Jogar</button>
+
+<script>
+const canvas = document.getElementById("jogo");
+const ctx = canvas.getContext("2d");
+
+const pontosTexto = document.getElementById("pontos");
+const vidasTexto = document.getElementById("vidas");
+const mensagem = document.getElementById("mensagem");
+const botao = document.getElementById("botao");
+
+let morcego;
+let obstaculos = [];
+let cristais = [];
+let pontos = 0;
+let vidas = 3;
+let quadro = 0;
+let teclas = {};
+let jogando = false;
+let animacao;
+
+function criarMorcego() {
+    morcego = {
+        x: 150,
+        y: 250,
+        velocidadeY: 0,
+        tamanho: 20,
+        invulneravel: 0
+    };
+}
+
+function iniciarJogo() {
+    cancelAnimationFrame(animacao);
+
+    criarMorcego();
+    obstaculos = [];
+    cristais = [];
+    pontos = 0;
+    vidas = 3;
+    quadro = 0;
+    jogando = true;
+
+    pontosTexto.textContent = pontos;
+    vidasTexto.textContent = vidas;
+    mensagem.textContent = "Boa sorte, morceguinho!";
+    botao.textContent = "Reiniciar";
+
+    ciclo();
+}
+
+document.addEventListener("keydown", function(evento) {
+    teclas[evento.key.toLowerCase()] = true;
+
+    if (["ArrowUp", "ArrowDown", " "].includes(evento.key)) {
+        evento.preventDefault();
+    }
+
+    if (evento.code === "Space" && jogando) {
+        morcego.velocidadeY = -6;
+    }
+});
+
+document.addEventListener("keyup", function(evento) {
+    teclas[evento.key.toLowerCase()] = false;
+});
+
+function criarObstaculo() {
+    const abertura = 165;
+    const centro = 100 + Math.random() * 300;
+
+    obstaculos.push({
+        x: canvas.width,
+        largura: 48,
+        topo: centro - abertura / 2,
+        base: centro + abertura / 2,
+        contado: false
+    });
+
+    cristais.push({
+        x: canvas.width + 30,
+        y: centro,
+        tamanho: 12,
+        coletado: false
+    });
+}
+
+function desenharCenario() {
+    const gradiente = ctx.createLinearGradient(
+        0, 0, 0, canvas.height
+    );
+
+    gradiente.addColorStop(0, "#0d1430");
+    gradiente.addColorStop(1, "#30456d");
+
+    ctx.fillStyle = gradiente;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Estrelas
+    ctx.fillStyle = "#dce7ff";
+
+    for (let i = 0; i < 65; i++) {
+        const x = (i * 137) % canvas.width;
+        const y = (i * 71) % 260;
+
+        ctx.fillRect(x, y, 2, 2);
+    }
+
+    // Lua
+    ctx.fillStyle = "#e4eaff";
+    ctx.beginPath();
+    ctx.arc(740, 85, 35, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Silhueta da floresta
+    ctx.fillStyle = "#182648";
+
+    for (let x = 0; x < canvas.width; x += 65) {
+        ctx.beginPath();
+        ctx.moveTo(x, 500);
+        ctx.lineTo(x + 32, 340);
+        ctx.lineTo(x + 65, 500);
+        ctx.fill();
+    }
+}
+
+function desenharMorcego() {
+    ctx.save();
+    ctx.translate(morcego.x, morcego.y);
+
+    // Asas
+    ctx.fillStyle = "#7889ff";
+
+    ctx.beginPath();
+    ctx.moveTo(-5, 0);
+    ctx.lineTo(-30, -20);
+    ctx.lineTo(-24, 5);
+    ctx.lineTo(-15, 14);
+    ctx.lineTo(-5, 7);
+    ctx.lineTo(8, 16);
+    ctx.lineTo(25, 3);
+    ctx.lineTo(29, -18);
+    ctx.lineTo(7, -3);
+    ctx.closePath();
+    ctx.fill();
+
+    // Corpo
+    ctx.fillStyle = "#c1c9ff";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 15, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Orelhas
+    ctx.fillStyle = "#ff91b7";
+    ctx.beginPath();
+    ctx.moveTo(-9, -8);
+    ctx.lineTo(-14, -20);
+    ctx.lineTo(-2, -11);
+    ctx.fill();
+
+    // Olho
+    ctx.fillStyle = "#171a36";
+    ctx.beginPath();
+    ctx.arc(7, -3, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+function desenharObstaculos() {
+    obstaculos.forEach(function(o) {
+        ctx.fillStyle = "#4a5e8e";
+
+        ctx.fillRect(o.x, 0, o.largura, o.topo);
+        ctx.fillRect(
+            o.x,
+            o.base,
+            o.largura,
+            canvas.height - o.base
+        );
+
+        ctx.fillStyle = "#a6f3d0";
+
+        for (let y = 15; y < o.topo - 5; y += 25) {
+            ctx.beginPath();
+            ctx.moveTo(o.x, y);
+            ctx.lineTo(o.x + o.largura / 2, y + 12);
+            ctx.lineTo(o.x + o.largura, y);
+            ctx.fill();
+        }
+
+        for (let y = o.base + 15; y < 490; y += 25) {
+            ctx.beginPath();
+            ctx.moveTo(o.x, y);
+            ctx.lineTo(o.x + o.largura / 2, y - 12);
+            ctx.lineTo(o.x + o.largura, y);
+            ctx.fill();
+        }
+    });
+}
+
+function desenharCristais() {
+    cristais.forEach(function(c) {
+        if (c.coletado) return;
+
+        ctx.save();
+        ctx.translate(c.x, c.y);
+        ctx.rotate(Math.PI / 4);
+
+        ctx.fillStyle = "#72f5ff";
+        ctx.shadowColor = "#72f5ff";
+        ctx.shadowBlur = 15;
+        ctx.fillRect(
+            -c.tamanho / 2,
+            -c.tamanho / 2,
+            c.tamanho,
+            c.tamanho
+        );
+
+        ctx.restore();
+        ctx.shadowBlur = 0;
+    });
+}
+
+function colidiuRetangulo(x, y, largura, altura) {
+    return (
+        morcego.x + morcego.tamanho > x &&
+        morcego.x - morcego.tamanho < x + largura &&
+        morcego.y + morcego.tamanho > y &&
+        morcego.y - morcego.tamanho < y + altura
+    );
+}
+
+function verificarColisoes() {
+    obstaculos.forEach(function(o) {
+        if (
+            colidiuRetangulo(
+                o.x, 0, o.largura, o.topo
+            ) ||
+            colidiuRetangulo(
+                o.x,
+                o.base,
+                o.largura,
+                canvas.height - o.base
+            )
+        ) {
+            if (morcego.invulneravel === 0) {
+                vidas--;
+                vidasTexto.textContent = vidas;
+                morcego.invulneravel = 70;
+
+                if (vidas <= 0) {
+                    terminarJogo();
+                }
+            }
+        }
+
+        if (!o.contado && o.x + o.largura < morcego.x) {
+            o.contado = true;
+            pontos += 5;
+            pontosTexto.textContent = pontos;
+        }
+    });
+
+    cristais.forEach(function(c) {
+        if (c.coletado) return;
+
+        const distancia = Math.hypot(
+            morcego.x - c.x,
+            morcego.y - c.y
+        );
+
+        if (distancia < morcego.tamanho + c.tamanho) {
+            c.coletado = true;
+            pontos += 10;
+            pontosTexto.textContent = pontos;
+        }
+    });
+}
+
+function atualizar() {
+    quadro++;
+
+    if (teclas["w"] || teclas["arrowup"]) {
+        morcego.velocidadeY -= 0.45;
+    }
+
+    if (teclas["s"] || teclas["arrowdown"]) {
+        morcego.velocidadeY += 0.45;
+    }
+
+    morcego.velocidadeY += 0.10;
+    morcego.velocidadeY *= 0.92;
+
+    morcego.velocidadeY = Math.max(
+        -5, Math.min(5, morcego.velocidadeY)
+    );
+
+    morcego.y += morcego.velocidadeY;
+
+    morcego.y = Math.max(
+        20, Math.min(canvas.height - 20, morcego.y)
+    );
+
+    if (morcego.invulneravel > 0) {
+        morcego.invulneravel--;
+    }
+
+    if (quadro % 85 === 0) {
+        criarObstaculo();
+    }
+
+    const velocidade = 3 + Math.min(3, pontos / 150);
+
+    obstaculos.forEach(o => o.x -= velocidade);
+    cristais.forEach(c => c.x -= velocidade);
+
+    obstaculos = obstaculos.filter(
+        o => o.x + o.largura > 0
+    );
+
+    cristais = cristais.filter(
+        c => c.x > -20 && !c.coletado
+    );
+
+    verificarColisoes();
+}
+
+function terminarJogo() {
+    jogando = false;
+    mensagem.textContent =
+        "Fim de jogo! Você conseguiu " + pontos + " pontos.";
+    botao.textContent = "Jogar novamente";
+}
+
+function desenhar() {
+    desenharCenario();
+    desenharObstaculos();
+    desenharCristais();
+
+    if (
+        morcego.invulneravel === 0 ||
+        Math.floor(morcego.invulneravel / 5) % 2 === 0
+    ) {
+        desenharMorcego();
+    }
+
+    if (!jogando && vidas <= 0) {
+        ctx.fillStyle = "#0009";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        ctx.font = "bold 42px Arial";
+        ctx.fillText(
+            "FIM DE JOGO",
+            canvas.width / 2,
+            canvas.height / 2
+        );
+    }
+}
+
+function ciclo() {
+    if (!jogando) return;
+
+    atualizar();
+    desenhar();
+
+    if (jogando) {
+        animacao = requestAnimationFrame(ciclo);
+    } else {
+        desenhar();
+    }
+}
+
+criarMorcego();
+desenharCenario();
+desenharMorcego();
+</script>
+
+</body>
+</html>
+
